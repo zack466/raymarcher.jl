@@ -1,3 +1,5 @@
+# with inspiration from https://ch-st.de/its-ray-marching-march/
+
 using LinearAlgebra
 include("console.jl")
 
@@ -8,11 +10,26 @@ function normalized(vec::Vector)
     return vec ./ norm(vec)
 end
 
-function sdf_union(a::Float32, b::Float32)
-    min(a, b)
+function rotate_y(theta::Float32)
+    c = cos(theta); s = sin(theta)
+    [
+        c  0.0  s  0.0;
+        0.0  1.0  0.0  0.0;
+        (-s)  0.0  c  0.0;
+        0.0  0.0  0.0  1.0;
+    ]
 end
 
 abstract type SceneObject end;
+
+function sdf_rotate(obj::SceneObject, pos::Vector{Float32}, theta::Float32)
+    newpos::Array{Float32, 1} = (inv(rotate_y(theta)) * vcat(pos, 1.0))[1:3]
+    sdf(obj, newpos)
+end
+
+function sdf_union(a::Float32, b::Float32)
+    min(a, b)
+end
 
 struct Scene
     objects::Vector{SceneObject}
@@ -21,7 +38,7 @@ end
 function sdf(scene::Scene, pos::Vector{Float32})
     res = 9999.9f0
     for obj in scene.objects
-        res = min(sdf(obj, pos))
+        res = min(res, sdf(obj, pos))
     end
     res
 end
@@ -36,6 +53,15 @@ function sdf(sphere::Sphere, pos::Vector{Float32})
     norm(pos - sphere.center) - sphere.radius
 end
 
+struct Box <: SceneObject
+    b::Vector{Float32}
+end
+
+function sdf(box::Box, pos::Vector{Float32})
+    @assert length(pos) == 3
+    q = abs.(pos) - box.b
+    norm(max.(q, 0.0)) + min(max(q[1], q[2], q[3]), 0.0)
+end
 
 function shade(pos::Vector{Float32}, sdf::Function, time::Float32)
     light::Vector{Float32} = [50.0 * sin(time), 20.0, 50.0 * cos(time)]
@@ -81,16 +107,19 @@ function raymarch!(screen::Screen, time::Float32)
                ]
             ray = normalized(target - pos)
 
-            sphere = Sphere([0.0, 0.0, 0.0], 0.4)
+            # sphere = Sphere([0.0, 0.0, 0.0], 0.4)
+            box = Box([0.2, 0.2, 0.2])
             maxdist = 9999.9
             pixel = PIXEL_SHADES[1]
+            # total_sdf = x -> sdf(box, x)
+            total_sdf = x -> sdf_rotate(box, x, 1.4f0)
             for _ in 1:20
                 if any(map(x -> x > maxdist, ray))
                     break
                 end
-                dist = sdf(sphere, pos)
+                dist = total_sdf(pos)
                 if dist < 1e-6
-                    pixel = shade(pos, x->sdf(sphere, x), time)
+                    pixel = shade(pos, total_sdf, time)
                     break
                 end
                 pos += ray * dist

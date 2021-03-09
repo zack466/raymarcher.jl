@@ -10,7 +10,7 @@ function press_enter()
 end
 
 function main()
-    height, width = 40, 80
+    height, width = 20, 40
     buf = Array{Char, 1}(undef, height * width) # [ width | width | width ]
     screen = Screen(height, width, buf)
     enter = press_enter()
