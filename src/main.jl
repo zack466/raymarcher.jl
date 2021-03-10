@@ -10,7 +10,7 @@ function press_enter()
 end
 
 function main()
-    height, width = 20, 40
+    height, width = 50, 200
     buf = Array{Char, 1}(undef, height * width) # [ width | width | width ]
     screen = Screen(height, width, buf)
     enter = press_enter()
@@ -30,11 +30,11 @@ function main()
         move_cursor_up(screen.height)
 
         t2 = Dates.now()
-        while (t2 - t1).value < 16
+        while (t2 - t1).value < 16 # 16 ms ≈ 60fps
             t2 = Dates.now()
         end
         time += (t2 - t1).value / 1000.0f0
     end
 end
 
-main()
+# main()

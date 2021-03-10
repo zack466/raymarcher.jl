@@ -1,16 +1,43 @@
 # with inspiration from https://ch-st.de/its-ray-marching-march/
+# TODO: implement small static arrays for speedups
+# TODO: improve speed of rot matrices. How to prevent too many array allocations?
+# TODO: check if jl_apply_generic is a performance issue or not
+# TODO: add more sdf functions, stabilize sdf API (functional, eager, etc)
+# TODO: better way of handing animation/state (currently just passing time as a parameter)
+# TODO: get scene struct set up for easily displaying multiple things
+# TODO: autodiff normal vector if we get speedups
+# TODO: add tests for easy benchmarking
+# TODO: improve package structure
+# TODO: deal with hcat/vcat slowness
+# TODO: float32 vs float64 speed? Just replace everything with float64 probably
+# TODO: dithering for better-looking ascii output
+# TODO: improve camera implmentation, allow for movement/rotation
 
 using LinearAlgebra
+using Memoize
+using StaticArrays
 include("console.jl")
 
 # const PIXEL_SHADES = reverse("\$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ")
 const PIXEL_SHADES = " .:-=+*#%@"
 
+abstract type SceneObject end;
+
 function normalized(vec::Vector)
     return vec ./ norm(vec)
 end
 
-function rotate_y(theta::Float32)
+@memoize function rot_z(theta::Float32)
+    c = cos(theta); s = sin(theta)
+    [
+        1.0  0.0  0.0  0.0;
+        0.0  c  (-s)  0.0;
+        0.0  s  c  0.0;
+        0.0  0.0  0.0  1.0;
+    ]
+end
+
+@memoize function rot_y(theta::Float32)
     c = cos(theta); s = sin(theta)
     [
         c  0.0  s  0.0;
@@ -20,11 +47,28 @@ function rotate_y(theta::Float32)
     ]
 end
 
-abstract type SceneObject end;
+@memoize function rot_x(theta::Float32)
+    c = cos(theta); s = sin(theta)
+    [
+     1.0 0.0 0.0 0.0;
+     0.0 c (-s) 0.0;
+     0.0 s c 0.0;
+     0.0 0.0 0.0 1.0;
+    ]
+end
 
-function sdf_rotate(obj::SceneObject, pos::Vector{Float32}, theta::Float32)
-    newpos::Array{Float32, 1} = (inv(rotate_y(theta)) * vcat(pos, 1.0))[1:3]
+@memoize function total_rot(theta_x::Float32 = 0.0f0, theta_y::Float32 = 0.0f0, theta_z::Float32 = 0.0f0)
+    inv(rot_z(theta_z) * rot_y(theta_y) * rot_x(theta_x))
+end
+
+function sdf_rotate(obj::SceneObject, pos::Vector{Float32}, theta_x::Float32 = 0.0f0, theta_y::Float32 = 0.0f0, theta_z::Float32 = 0.0f0)
+    rot_matrix::Array{Float32, 2} = total_rot(theta_x, theta_y, theta_z)
+    newpos::Array{Float32, 1} = rot_matrix[1:3, 1:3] * pos
     sdf(obj, newpos)
+end
+
+function sdf_translate(obj::SceneObject, pos::Vector{Float32}, offset::Vector{Float32})
+    sdf(obj, pos .- offset)
 end
 
 function sdf_union(a::Float32, b::Float32)
@@ -50,7 +94,7 @@ struct Sphere <: SceneObject
 end
 
 function sdf(sphere::Sphere, pos::Vector{Float32})
-    norm(pos - sphere.center) - sphere.radius
+    norm(pos .- sphere.center) - sphere.radius
 end
 
 struct Box <: SceneObject
@@ -59,12 +103,14 @@ end
 
 function sdf(box::Box, pos::Vector{Float32})
     @assert length(pos) == 3
-    q = abs.(pos) - box.b
+    q = abs.(pos) .- box.b
     norm(max.(q, 0.0)) + min(max(q[1], q[2], q[3]), 0.0)
 end
 
 function shade(pos::Vector{Float32}, sdf::Function, time::Float32)
     light::Vector{Float32} = [50.0 * sin(time), 20.0, 50.0 * cos(time)]
+    # light::Vector{Float32} = [25.0, 20.0, 25.0]
+
     light = normalized(light)
 
     dt = 1e-6;
@@ -97,25 +143,26 @@ function shade(pos::Vector{Float32}, sdf::Function, time::Float32)
 end
 
 function raymarch!(screen::Screen, time::Float32) 
+    # sphere = Sphere([0.0, 0.0, 0.0],0.4)
+    box = Box([0.2, 0.2, 0.2])
+    # total_sdf = x -> sdf_translate(box, x, [0.0f0, 0.3f0, 0.0f0])
+    # total_sdf = x -> sdf(sphere, x - [0.0f0, sin(time) * 0.5f0, 0.05f0])
+    total_sdf = x -> sdf_rotate(box, x, 0.0f0, 0.8f0, 0.5f0)
+
     for y in 1:screen.height
         for x in 1:screen.width
-            pos::Vector{Float32} = [0.0, 0.0, -3.0]
+            pos::Vector{Float32} = [0.0, -0.1, -3.0]
             target = [
                 x / screen.width - 0.5,
                 (y / screen.height - 0.5) * (screen.height / screen.width) * 1.8,
                 -1.5,
                ]
-            ray = normalized(target - pos)
+            ray = normalized(target .- pos)
 
-            sphere = Sphere([0.0, 0.0, 0.0], 0.4)
-            # box = Box([0.2, 0.2, 0.2])
-            maxdist = 9999.9
+            maxdist = 100.0
             pixel = PIXEL_SHADES[1]
-            # total_sdf = x -> sdf(box, x)
-            # total_sdf = x -> sdf_rotate(box, x, 1.4f0)
-            total_sdf = x -> sdf(sphere, x - [0.0f0, sin(time), 0.05f0])
             
-            for _ in 1:20
+            for _ in 1:30
                 if any(map(x -> x > maxdist, ray))
                     break
                 end

@@ -1,5 +1,6 @@
+
 module RayMarcher
 
-greet() = print("Hello World!")
+include("main.jl")
 
 end # module
