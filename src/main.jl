@@ -9,13 +9,12 @@ function press_enter()
     return rx
 end
 
-function main()
-    height, width = 50, 200
+function render()
+    height, width = 41, 150
     buf = Array{Char, 1}(undef, height * width) # [ width | width | width ]
-    screen = Screen(height, width, buf)
     enter = press_enter()
 
-    time::Float32 = 0.0f0
+    time = 0.0
 
     while true
         t1 = Dates.now()
@@ -24,16 +23,16 @@ function main()
             break
         end
 
-        raymarch!(screen, time)
+        raymarch!(buf, height, width, time)
 
-        show_buffer(screen.buf, screen.height, screen.width)
-        move_cursor_up(screen.height)
+        show_buffer(buf, height, width)
+        move_cursor_up(height)
 
         t2 = Dates.now()
         while (t2 - t1).value < 16 # 16 ms ≈ 60fps
             t2 = Dates.now()
         end
-        time += (t2 - t1).value / 1000.0f0
+        time += (t2 - t1).value / 1000.0
     end
 end
 

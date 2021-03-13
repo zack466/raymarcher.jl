@@ -1,9 +1,3 @@
-struct Screen
-    height
-    width
-    buf::Array{Char, 1}
-end
-
 function cls()
     print(stdout, "\033[J")
 end
