@@ -10,7 +10,7 @@ function press_enter()
 end
 
 function render()
-    height, width = 41, 150
+    height, width = 45, 130
     buf = Array{Char, 1}(undef, height * width) # [ width | width | width ]
     enter = press_enter()
 
@@ -36,4 +36,4 @@ function render()
     end
 end
 
-# main()
+render()

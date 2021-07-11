@@ -63,8 +63,9 @@ function lighting(height::Int64, width::Int64, time::Float64)
     box = Box(SA[0.4, 0.2, 0.2])
     sphere = Sphere(SA[0.0, 0.0, 0.0], 0.2)
     # box = Sphere([0.0, 0.0, 0.0], 0.2)
-    total_sdf = pos -> min(sdf(box, pos |> sdf_translate(SA[0.0, 0.0, 0.0]) |> sdf_rotate(0.4, 2pi*rem(time/2.4, 1.0, RoundNearest), 0.4)),
-                           sdf(sphere, pos |> sdf_translate(SA[sin(time), 0.0, 0.0])))
+    # total_sdf = pos -> min(sdf(box, pos |> sdf_translate(SA[0.0, 0.0, 0.0]) |> sdf_rotate(0.4, 2pi*rem(time/2.4, 1.0, RoundNearest), 0.4)),
+                           # sdf(sphere, pos |> sdf_translate(SA[0.0, 0.0, 0.0])))
+    total_sdf = pos -> sdf(box, pos |> sdf_translate(SA[0.0, 0.2 * cos(2 *time), 0.0]) |> sdf_rotate(0.4, 2pi*rem(time/2.4, 1.0, RoundNearest), 0.4))
     # total_sdf = pos -> sdf(box, pos |> sdf_rotate(0.4, 2pi*rem(time/2.4, 1.0, RoundNearest), 0.4))
 
     light_vals = Array{Float64, 1}(undef, height*width)
